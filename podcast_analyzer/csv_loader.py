@@ -5,7 +5,10 @@ import re
 
 from pathlib import Path
 from speaker import SpeakerProfile
-from .exceptions import InvalidIdentifierError
+from observation import Observation
+from recording_session import RecordingSession
+from .exceptions import InvalidIdentifierError, InvalidRecordError
+
 
 # Take in a csv file path and return the rows
 def read_csv_rows(file_path: str | Path) -> list[dict[str, str]]:
@@ -75,5 +78,74 @@ def group_recording_rows(file_path: str | Path) -> dict[str, list[dict[str, str]
 
     return recordings
 
+# Take CSV data, organize it by recording, and turn each row into an Observation object. Return a RecordingSession dict
+def load_recording_sessions(file_path: str | Path, speakers: dict[str, SpeakerProfile]) -> dict[str, RecordingSession]:
+    # First group the CSV rows by recording ID
+    grouped_rows = group_recording_rows(file_path)
+    sessions = {}
 
+    # Each group becomes one recording session
+    for recording_id, rows in grouped_rows.items():
+        # Finding the speaker of the group
+        speaker_id = rows[0]["speaker_id"]
 
+        # Missing speaker error
+        if speaker_id not in speakers:
+            raise InvalidRecordError(
+                f"Recording {recording_id} refers to unknown speaker {speaker_id!r}."
+            )
+
+        observations = []
+
+        # Turn each CSV row into an Observation object
+        for row in rows:
+            # Multiple speakers error
+            if row["speaker_id"] != speaker_id:
+                raise InvalidRecordError(
+                    f"Recording {recording_id} contains more than one speaker. "
+                )
+
+            speech_text = row["speech_present"].strip().lower()
+            # speech present must be True or False
+            if speech_text not in ("true", "false"):
+                raise InvalidRecordError(
+                    f"Invalid speech_present value: {row['speech_present']!r}. "
+                    "Expected value of True or False."
+                )
+
+            # Convert to boolean
+            speech_present = speech_text == "true"
+
+            # Converting values
+            # Empty values are accepted here since sometimes there is no speech
+            pitch_text = row["pitch"].strip()
+            pitch = float(pitch_text) if pitch_text else None
+
+            energy_text = row["energy"].strip()
+            energy = float(energy_text) if energy_text else None
+
+            rate_text = row["speech_rate"].strip()
+            speech_rate = int(rate_text) if rate_text else None
+
+            pause_text = row["pause_ratio"].strip()
+            pause_ratio = float(pause_text) if pause_text else None
+
+            observation = Observation(
+                timestamp = int(row["timestamp"]),
+                speech_present = speech_present,
+                pitch = pitch,
+                energy = energy,
+                speech_rate = speech_rate,
+                pause_ratio = pause_ratio,
+                background_noise = float(row["background_noise"]),
+                signal_quality = float(row["signal_quality"]),
+            )
+
+            observations.append(observation)
+        
+        sessions[recording_id] = RecordingSession(
+            speakers[speaker_id],
+            observations,
+        )
+
+    return sessions
