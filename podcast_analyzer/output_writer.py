@@ -118,3 +118,29 @@ def write_analysis_report(
             report_file.write("\n\n")
 
     return report_path
+
+
+# Creates the rejected_records.txt file
+def write_rejected_records(
+        rejected_records: list[dict],
+        output_directory: str | Path,
+) -> Path:
+
+    output_dir = Path(output_directory)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    rejected_path = output_dir / "rejected_records.txt"
+
+    # Explain why each row was rejected
+    with open(rejected_path, "w", encoding="utf-8") as report_file:
+        if not rejected_records:
+            report_file.write("No records were rejected.\n")
+        else:
+            for record in rejected_records:
+                report_file.write(f"Source file: {record['source_file']}\n")
+                report_file.write(f"Row number: {record['row_number']}\n")
+                report_file.write(f"Field: {record['field']}\n")
+                report_file.write(f"Reason: {record['reason']}\n")
+                report_file.write("\n")
+
+    return rejected_path

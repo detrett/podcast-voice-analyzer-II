@@ -23,7 +23,13 @@ def read_csv_rows(file_path: str | Path) -> list[dict[str, str]]:
         if reader.fieldnames is None:
             raise ValueError(f"{path} is empty or is missing a header row.")
 
-        return list(reader)
+        rows = []
+        # Keep the original CSV row number so errors can point to it
+        for row_number, row in enumerate(reader, start=2):
+            row["__row_number__"] = str(row_number)
+            rows.append(row)
+
+        return rows
 
 
 # Take in speakers csv file path and create SPEAKER profiles
@@ -56,21 +62,39 @@ def load_speakers (file_path: str | Path) -> dict[str, SpeakerProfile]:
     return speakers
 
 # Take in recordings CSV file and group all the recordings with the same ID
-def group_recording_rows(file_path: str | Path) -> dict[str, list[dict[str, str]]]:
+def group_recording_rows(
+        file_path: str | Path,
+        rejected_records: list[dict] | None = None,
+) -> dict[str, list[dict[str, str]]]:
+
+    if rejected_records is None:
+        rejected_records = []
+
     # Read the CSV rows first
     rows = read_csv_rows(file_path)
     recordings = {}
 
     # Put rows with the same recording ID together
     for row in rows:
-        recording_id = row["recording_id"]
+        recording_id = row.get("recording_id")
 
-        # Check that the recording ID matches the right format (e.g., REC-2026-001)
-        if re.fullmatch(r"REC-\d{4}-\d{3}", recording_id) is None:
-            raise InvalidIdentifierError(
-                f"Invalid recording ID: {recording_id!r}. "
-                "Expected REC-YYYY-NNN, for example REC-2026-001."
-            )
+        # Raise InvalidIdentifierError when the ID is wrong
+        # Use Except to catch the error and record the info before moving onto the next row
+        try:
+            if re.fullmatch(r"REC-\d{4}-\d{3}", recording_id or "") is None:
+                raise InvalidIdentifierError(
+                    f"Invalid recording ID: {recording_id!r}. "
+                    "Expected REC-YYYY-NNN, for example REC-2026-001."
+                )
+        except InvalidIdentifierError as error:
+            rejected_records.append({
+                "source_file": Path(file_path).name,
+                "row_number": row["__row_number__"],
+                "field": "recording_id",
+                "reason": str(error),
+            })
+            continue
+
         if recording_id not in recordings:
              recordings[recording_id] = []
 
@@ -79,9 +103,17 @@ def group_recording_rows(file_path: str | Path) -> dict[str, list[dict[str, str]
     return recordings
 
 # Take CSV data, organize it by recording, and turn each row into an Observation object. Return a RecordingSession dict
-def load_recording_sessions(file_path: str | Path, speakers: dict[str, SpeakerProfile]) -> dict[str, RecordingSession]:
+def load_recording_sessions(
+        file_path: str | Path,
+        speakers: dict[str, SpeakerProfile],
+        rejected_records: list[dict] | None = None,
+) -> dict[str, RecordingSession]:
+
+    if rejected_records is None:
+        rejected_records = []
+
     # First group the CSV rows by recording ID
-    grouped_rows = group_recording_rows(file_path)
+    grouped_rows = group_recording_rows(file_path, rejected_records)
     sessions = {}
 
     # Each group becomes one recording session
