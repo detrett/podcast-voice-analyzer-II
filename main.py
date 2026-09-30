@@ -1,7 +1,11 @@
-from data_generator import available_scenarios
-from sample_data import create_recording_session
+import argparse
+from pathlib import Path
+
 from analyzer import Analyzer
+from data_generator import available_scenarios
+from podcast_analyzer.csv_loader import load_recording_sessions, load_speakers
 from report import print_report
+from sample_data import create_recording_session
 
 def run_scenario(scenario):
     session = create_recording_session(
@@ -15,10 +19,39 @@ def run_scenario(scenario):
     print("\nScenario:", scenario)
     print_report(result)
 
+def run_csv_files(profiles_path: Path, sessions_path: Path):
+    # Load speaker profiles first so each recording can find its speaker
+    speakers = load_speakers(profiles_path)
+    sessions = load_recording_sessions(sessions_path, speakers)
+
+    # Analyze and display the recordings
+    for recording_id, session in sessions.items():
+        analyzer = Analyzer(session)
+        result = analyzer.analyze()
+
+        print("\nRecording:", recording_id)
+        print_report(result)
+
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Analyze podcast voice and recording data."
+    )
+    parser.add_argument("--profiles", type=Path, help="Path to the speakers CSV file")
+    parser.add_argument("--sessions", type=Path, help="Path to the recording sessions CSV file")
+    args = parser.parse_args()
+
     print("Podcast Voice and Recording Analyzer")
 
+    # CSV mode needs both files
+    if args.profiles is not None or args.sessions is not None:
+        if args.profiles is None or args.sessions is None:
+            parser.error("Please provide both --profiles and --sessions.")
+
+        run_csv_files(args.profiles, args.sessions)
+        return
+
+    # Run the original generated scenarios if no CSV arguments are provided
     scenarios = available_scenarios()
 
     for scenario in scenarios:
