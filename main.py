@@ -4,7 +4,7 @@ from pathlib import Path
 from analyzer import Analyzer
 from data_generator import available_scenarios
 from podcast_analyzer.csv_loader import load_recording_sessions, load_speakers
-from podcast_analyzer.output_writer import write_analysis_summary
+from podcast_analyzer.output_writer import write_analysis_summary, write_analysis_report
 from report import print_report
 from sample_data import create_recording_session
 
@@ -39,6 +39,8 @@ def run_csv_files(profiles_path: Path, sessions_path: Path, output_directory: Pa
     # Save the results after all the recordings have been analyzed
     summary_path = write_analysis_summary(results, output_directory)
     print(f"\nSummary saved to: {summary_path}")
+    report_path = write_analysis_report(results, output_directory)
+    print(f"Readable report saved to: {report_path}")
 
 
 def main():

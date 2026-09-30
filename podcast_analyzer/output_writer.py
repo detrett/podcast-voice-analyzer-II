@@ -1,5 +1,6 @@
 import csv
 from pathlib import Path
+from utils import format_metric
 
 # To set the CSV headings
 SUMMARY_FIELDS = [
@@ -22,6 +23,7 @@ SUMMARY_FIELDS = [
 ]
 
 
+# Creates the analysis_summary.csv file
 def write_analysis_summary(
     results: dict[str, dict],
     output_directory: str | Path,
@@ -59,3 +61,60 @@ def write_analysis_summary(
             })
 
         return summary_path
+
+
+# Creates the analysis_report.txt file
+def write_analysis_report(
+        results: dict[str, dict],
+        output_directory: str | Path,
+) -> Path:
+
+    output_dir = Path(output_directory)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    report_path = output_dir / "analysis_report.txt"
+
+    # Write a readable explanation for each recording
+    with open(report_path, "w", encoding="utf-8") as report_file:
+        for recording_id, result in results.items():
+            quality = result["quality"]
+
+            report_file.write(f"Recording: {recording_id}\n")
+            report_file.write("-" * 50 + "\n")
+            report_file.write(f"Speaker: {result['speaker_id']}\n")
+            report_file.write(
+                f"Usable speech windows: {result['usable_speech_windows']}\n"
+            )
+            report_file.write(
+                f"Delivery classification: {result['classification']}\n"
+            )
+            report_file.write(f"Recording quality: {quality['label']}\n")
+            report_file.write(f"Quality explanation: {quality['reason']}\n")
+
+            report_file.write("\nAcoustic measurements\n")
+            report_file.write(
+                f"Average pitch: {format_metric(result['average_pitch'])}\n"
+            )
+            report_file.write(
+                f"Average energy: {format_metric(result['average_energy'])}\n"
+            )
+            report_file.write(
+                "Average speech rate: "
+                f"{format_metric(result['average_speech_rate'])}\n"
+            )
+            report_file.write(
+                "Average pause ratio: "
+                f"{format_metric(result['average_pause_ratio'])}\n"
+            )
+            report_file.write(
+                "Average background noise: "
+                f"{format_metric(result['average_background_noise'])}\n"
+            )
+            report_file.write(
+                "Average signal quality: "
+                f"{format_metric(result['average_signal_quality'])}\n"
+            )
+
+            report_file.write("\n\n")
+
+    return report_path
