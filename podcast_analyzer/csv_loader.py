@@ -113,71 +113,100 @@ def load_recording_sessions(
         rejected_records = []
 
     # First group the CSV rows by recording ID
+    # Rows with an invalid recording ID are already recorded as rejected here
     grouped_rows = group_recording_rows(file_path, rejected_records)
     sessions = {}
 
-    # Each group becomes one recording session
+    # Each group of rows sharing ID becomes one recording session
     for recording_id, rows in grouped_rows.items():
-        # Finding the speaker of the group
-        speaker_id = rows[0]["speaker_id"]
-
-        # Missing speaker error
-        if speaker_id not in speakers:
-            raise InvalidRecordError(
-                f"Recording {recording_id} refers to unknown speaker {speaker_id!r}."
-            )
-
+        speaker_id = None
         observations = []
 
-        # Turn each CSV row into an Observation object
         for row in rows:
-            # Multiple speakers error
-            if row["speaker_id"] != speaker_id:
-                raise InvalidRecordError(
-                    f"Recording {recording_id} contains more than one speaker. "
+            field = "speaker_id"
+
+            # Try to catch and record any errors row by row so that the program can continue if there is one
+            try:
+                row_speaker_id = row.get("speaker_id")
+                if row_speaker_id not in speakers:
+                    raise InvalidRecordError(
+                        f"Unknown speaker ID: {row_speaker_id!r}."
+                    )
+
+                if speaker_id is None:
+                    speaker_id = row_speaker_id
+                elif  row_speaker_id != speaker_id:
+                    raise InvalidRecordError(
+                        f"Recording {recording_id} contains multiple speakers."
+                    )
+
+                field = "speech_present"
+                speech_text = (row.get("speech_present") or "").strip().lower()
+
+                # The CSV must say true or false for this column
+                if speech_text not in ("true", "false"):
+                    raise InvalidRecordError(
+                        f"Invalid speech_present value: {speech_text!r}. "
+                        "Expected value of True or False."
+                    )
+
+                speech_present = speech_text == "true"
+
+                # Some speech measurements can be blank when there is no speech
+                field = "pitch"
+                pitch_text = (row.get("pitch") or "").strip()
+                pitch = float(pitch_text) if pitch_text else None
+
+                field = "energy"
+                energy_text = (row.get("energy") or "").strip()
+                energy = float(energy_text) if energy_text else None
+
+                field = "speech_rate"
+                rate_text = (row.get("speech_rate") or "").strip()
+                speech_rate = int(rate_text) if rate_text else None
+
+                field = "pause_ratio"
+                pause_text = (row.get("pause_ratio") or "").strip()
+                pause_ratio = float(pause_text) if pause_text else None
+
+                field = "timestamp"
+                timestamp = int(row.get("timestamp"))
+
+                field = "background_noise"
+                background_noise = float(row.get("background_noise"))
+
+                field = "signal_quality"
+                signal_quality = float(row.get("signal_quality"))
+
+                # Observation checks that the values are in acceptable ranges
+                field = "observation"
+                observation = Observation(
+                    timestamp=timestamp,
+                    speech_present=speech_present,
+                    pitch=pitch,
+                    energy=energy,
+                    speech_rate=speech_rate,
+                    pause_ratio=pause_ratio,
+                    background_noise=background_noise,
+                    signal_quality=signal_quality,
                 )
 
-            speech_text = row["speech_present"].strip().lower()
-            # speech present must be True or False
-            if speech_text not in ("true", "false"):
-                raise InvalidRecordError(
-                    f"Invalid speech_present value: {row['speech_present']!r}. "
-                    "Expected value of True or False."
-                )
+                observations.append(observation)
 
-            # Convert to boolean
-            speech_present = speech_text == "true"
+            except (InvalidRecordError, ValueError, TypeError, KeyError, AttributeError) as error:
+                # Save the problem details, then move on to the next row
+                rejected_records.append({
+                    "source_file": Path(file_path).name,
+                    "row_number": row.get("__row_number__", "unknown"),
+                    "field": field,
+                    "reason": str(error),
+                })
 
-            # Converting values
-            # Empty values are accepted here since sometimes there is no speech
-            pitch_text = row["pitch"].strip()
-            pitch = float(pitch_text) if pitch_text else None
-
-            energy_text = row["energy"].strip()
-            energy = float(energy_text) if energy_text else None
-
-            rate_text = row["speech_rate"].strip()
-            speech_rate = int(rate_text) if rate_text else None
-
-            pause_text = row["pause_ratio"].strip()
-            pause_ratio = float(pause_text) if pause_text else None
-
-            observation = Observation(
-                timestamp = int(row["timestamp"]),
-                speech_present = speech_present,
-                pitch = pitch,
-                energy = energy,
-                speech_rate = speech_rate,
-                pause_ratio = pause_ratio,
-                background_noise = float(row["background_noise"]),
-                signal_quality = float(row["signal_quality"]),
+        # Only make a session if at least one row for it was valid
+        if speaker_id is not None and observations:
+            sessions[recording_id] = RecordingSession(
+                speakers[speaker_id],
+                observations,
             )
-
-            observations.append(observation)
-        
-        sessions[recording_id] = RecordingSession(
-            speakers[speaker_id],
-            observations,
-        )
 
     return sessions

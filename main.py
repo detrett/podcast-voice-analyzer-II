@@ -4,7 +4,7 @@ from pathlib import Path
 from analyzer import Analyzer
 from data_generator import available_scenarios
 from podcast_analyzer.csv_loader import load_recording_sessions, load_speakers
-from podcast_analyzer.output_writer import write_analysis_summary, write_analysis_report
+from podcast_analyzer.output_writer import write_analysis_summary, write_analysis_report, write_rejected_records
 from report import print_report
 from sample_data import create_recording_session
 
@@ -22,9 +22,12 @@ def run_scenario(scenario):
 
 def run_csv_files(profiles_path: Path, sessions_path: Path, output_directory: Path):
 
+    # Keeping track of rejected rows
+    rejected_records = []
+
     # Load speaker profiles first so each recording can find its speaker
     speakers = load_speakers(profiles_path)
-    sessions = load_recording_sessions(sessions_path, speakers)
+    sessions = load_recording_sessions(sessions_path, speakers, rejected_records)
     results = {}
 
     # Analyze and display the recordings
@@ -41,6 +44,8 @@ def run_csv_files(profiles_path: Path, sessions_path: Path, output_directory: Pa
     print(f"\nSummary saved to: {summary_path}")
     report_path = write_analysis_report(results, output_directory)
     print(f"Readable report saved to: {report_path}")
+    rejected_path = write_rejected_records(rejected_records, output_directory)
+    print(f"Rejected records saved to: {rejected_path}")
 
 
 def main():
