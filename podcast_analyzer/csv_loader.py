@@ -125,18 +125,36 @@ def load_speakers (
             if not name:
                 raise InvalidRecordError("Speaker name is required.")
 
-            # Convert the baseline values from text into numbers
+            # Convert the baseline values from text into numbers. Validate afterwards
             field = "baseline_pitch"
             usual_pitch = float(row.get("baseline_pitch") or "")
+
+            if usual_pitch < 0:
+                raise InvalidRecordError("Baseline pitch cannot be negative.")
 
             field = "baseline_energy"
             usual_energy = float(row.get("baseline_energy") or "")
 
+            if usual_energy < 0 or usual_energy > 1:
+                raise InvalidRecordError(
+                    "Baseline energy must be between 0 and 1."
+                )
+
             field = "baseline_speech_rate"
             usual_speech_rate = int(row.get("baseline_speech_rate") or "")
 
+            if usual_speech_rate < 0:
+                raise InvalidRecordError(
+                    "Baseline speech rate cannot be negative."
+                )
+
             field = "baseline_pause_ratio"
             usual_pause_ratio = float(row.get("baseline_pause_ratio") or "")
+
+            if usual_pause_ratio < 0 or usual_pause_ratio > 1:
+                raise InvalidRecordError(
+                    "Baseline pause ratio must be between 0 and 1."
+                )
 
             profile = SpeakerProfile(
             speaker_id=speaker_id,
@@ -280,6 +298,9 @@ def load_recording_sessions(
 
                 field = "timestamp"
                 timestamp = int(row.get("timestamp"))
+
+                if timestamp < 0:
+                    raise InvalidRecordError("Timestamp cannot be negative.")
 
                 field = "background_noise"
                 background_noise = float(row.get("background_noise"))

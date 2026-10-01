@@ -96,50 +96,55 @@ The application uses the following rules (chosen arbitrarily but trying to follo
 
 ## Validation
 
-The `Observation` class checks for missing and impossible values.
+The `Observation` class checks that speech measurements are present when speech is detected and validates measurement ranges.
 
-For observations where speech is present, pitch, energy, speech rate, and pause ratio must be provided.
+In CSV mode, the application checks that the input files have the required columns and that each row has the expected number of values. It also checks identifiers and converts CSV text into the required numeric types.
 
-The numeric values are also checked against their expected ranges.
-For example, energy, pause ratio, background noise, and signal quality must be between 0 and 1.
+Invalid recording or speaker rows are skipped and written to `rejected_records.txt`. Each rejected row includes its source filename, CSV row number, field, and reason. The program continues processing other valid rows.
 
-Invalid generated observations are excluded from the recording rather than stopping the entire analysis.
+When `speech_present` is false, speech measurements can be blank. Poor signal quality is treated as a recording-quality issue: signal quality below `0.50` is considered poor.
 
 ## Project Structure
 
-- `main.py` - runs the application and analyzes the available scenarios
-- `speaker.py` - contains the `SpeakerProfile` class
-- `observation.py` - contains the `Observation` class
-- `recording_session.py` - contains the `RecordingSession` class
-- `analyzer.py` - contains the `Analyzer` class
-- `sample_data.py` - converts the supplied sample data into application objects
-- `report.py` - prints the analysis results
-- `utils.py` - contains reusable calculation and formatting functions
-- `data_generator.py` - supplied starter data generator
-- `tests.py` - automated tests
+- `main.py` - command-line program for generated scenarios and CSV analysis
+- `speaker.py` - contains the `SpeakerProfile` class (assignment I)
+- `observation.py` - contains the `Observation` class (assignment I)
+- `recording_session.py` - contains the `RecordingSession` class (assignment I)
+- `analyzer.py` - contains the `Analyzer` class (assignment I)
+- `sample_data.py` - converts the supplied sample data into application objects (assignment I)
+- `report.py` - prints the analysis results (assignment I)
+- `utils.py` - contains reusable calculation and formatting functions (assignment I)
+- `data_generator.py` - supplied starter data generator (assignment I)
+- `tests.py` - automated tests for the analyzer and CSV loader
 - `requirements.txt` - project dependencies
+- `podcast_analyzer/csv_loader.py` - reads and validates speaker and recording CSV files
+- `podcast_analyzer/exceptions.py` - custom exceptions for invalid identifiers and records
+- `podcast_analyzer/output_writer.py` - writes the analysis and rejection output files
+- `podcast_analyzer/__init__.py` - marks `podcast_analyzer` as a Python package
 
-## Installation
+## Installation and usage
 
 This project uses only the Python standard library, so no external packages need to be installed.
 
-Clone the repository and open a terminal in the project root.
-
-Run the application with:
+To run the original generated scenarios use:
 
     python main.py
-or
 
-    python3 main.py
+To run the analyzer with the supplied CSV files use:
 
-Run the tests with:
+    python main.py --profiles data/option_b_podcast/speakers.csv --sessions data/option_b_podcast/recording_sessions.csv
 
-    python -m unittest tests.py
-or
+Choose a different output folder with `--output`:
 
-    python3 -m unittest tests.py
+    python main.py --profiles data/option_b_podcast/speakers.csv --sessions data/option_b_podcast/recording_sessions.csv --output my_results
 
-## Example Output
+If `--output` is omitted, the program uses the default `output` folder. It creates the folder if needed and overwrites the output files on each run.
+
+Run the automated tests with:
+
+    python tests.py
+
+## Example Output (Simulated Mode)
 
 A typical analysis produces output similar to:
 
@@ -153,6 +158,16 @@ A typical analysis produces output similar to:
     Recording quality: good
 
 The application also displays the calculated acoustic measurements and their differences from the speaker's usual profile.
+
+## Example Output (CSV)
+
+CSV mode prints a completion summary with accepted speaker profiles, accepted recording rows, rejected rows, and the created files.
+
+The output folder contains:
+
+- `analysis_summary.csv` - one summary row per analyzed recording
+- `analysis_report.txt` - detailed analysis results
+- `rejected_records.txt` - details of rejected CSV rows, or a message if none were rejected
 
 ## Test Scenarios
 
@@ -168,7 +183,7 @@ These cover normal speaking behavior as well as different unusual and poor-quali
 
 ## Known Limitations
 
-The application works with generated sample data rather than recording or processing real audio, it only generates one speaker too.
+The application works with generated sample data or numeric data from CSV files rather than recording or processing real raw audio.
 
 The classification thresholds are manually defined for the project, so the classifications should not be interpreted as professional
 speech or audio analysis.
