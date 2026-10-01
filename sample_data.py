@@ -1,7 +1,7 @@
 from data_generator import generate_recording_data
-from speaker import SpeakerProfile
-from observation import Observation
-from recording_session import RecordingSession
+from podcast_analyzer.models.speaker import SpeakerProfile
+from podcast_analyzer.models.observation import Observation
+from podcast_analyzer.models.recording_session import RecordingSession
 
 # This function converts the generator's data (dictionaries/lists) into the classes used by the rest of the application
 def create_recording_session(scenario, seed=42, number_of_windows=12):

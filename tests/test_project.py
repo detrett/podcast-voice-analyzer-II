@@ -2,8 +2,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from analyzer import Analyzer
-from observation import Observation
+from podcast_analyzer.analyzer import Analyzer
+from podcast_analyzer.models.observation import Observation
 from podcast_analyzer.csv_loader import load_recording_sessions, load_speakers, read_csv_rows
 from sample_data import create_recording_session
 

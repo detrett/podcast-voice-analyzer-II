@@ -106,21 +106,24 @@ When `speech_present` is false, speech measurements can be blank. Poor signal qu
 
 ## Project Structure
 
-- `main.py` - command-line program for generated scenarios and CSV analysis
-- `speaker.py` - contains the `SpeakerProfile` class (assignment I)
-- `observation.py` - contains the `Observation` class (assignment I)
-- `recording_session.py` - contains the `RecordingSession` class (assignment I)
-- `analyzer.py` - contains the `Analyzer` class (assignment I)
-- `sample_data.py` - converts the supplied sample data into application objects (assignment I)
-- `report.py` - prints the analysis results (assignment I)
-- `utils.py` - contains reusable calculation and formatting functions (assignment I)
-- `data_generator.py` - supplied starter data generator (assignment I)
-- `tests.py` - automated tests for the analyzer and CSV loader
-- `requirements.txt` - project dependencies
-- `podcast_analyzer/csv_loader.py` - reads and validates speaker and recording CSV files
-- `podcast_analyzer/exceptions.py` - custom exceptions for invalid identifiers and records
-- `podcast_analyzer/output_writer.py` - writes the analysis and rejection output files
-- `podcast_analyzer/__init__.py` - marks `podcast_analyzer` as a Python package
+- `main.py` - command-line entry point for generated scenarios and CSV analysis
+- `podcast_analyzer/` - application package
+  - `analyzer.py` - analyzes a recording session
+  - `csv_loader.py` - reads and validates CSV files
+  - `exceptions.py` - custom exceptions for invalid input
+  - `output_writer.py` - writes the analysis and rejected-record files
+  - `models/` - the application's data classes
+    - `speaker.py` - stores a speaker profile
+    - `observation.py` - stores one recording observation
+    - `recording_session.py` - stores a speaker and their observations
+- `report.py` - formats analysis results for display
+- `utils.py` - reusable calculation and formatting functions
+- `sample_data.py` - turns generated data into application objects
+- `data_generator.py` - supplies the generated Assignment I scenarios
+- `data/option_b_podcast/` - supplied speaker and recording-session CSV files
+- `tests/test_project.py` - automated tests
+- `examples/example_usage.py` - example use of the data generator
+- `requirements.txt` - external dependencies, none are required
 
 ## Installation and usage
 
@@ -142,7 +145,8 @@ If `--output` is omitted, the program uses the default `output` folder. It creat
 
 Run the automated tests with:
 
-    python tests.py
+    python -m unittest discover -s tests
+    python -m examples.example_usage
 
 ## Example Output (Simulated Mode)
 

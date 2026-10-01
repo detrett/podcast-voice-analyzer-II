@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from analyzer import Analyzer
+from podcast_analyzer.analyzer import Analyzer
 from data_generator import available_scenarios
 from podcast_analyzer.csv_loader import load_recording_sessions, load_speakers
 from podcast_analyzer.output_writer import write_analysis_summary, write_analysis_report, write_rejected_records

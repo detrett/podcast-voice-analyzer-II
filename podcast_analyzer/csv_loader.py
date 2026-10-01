@@ -4,9 +4,9 @@ import csv
 import re
 
 from pathlib import Path
-from speaker import SpeakerProfile
-from observation import Observation
-from recording_session import RecordingSession
+from podcast_analyzer.models.speaker import SpeakerProfile
+from podcast_analyzer.models.observation import Observation
+from podcast_analyzer.models.recording_session import RecordingSession
 from .exceptions import InvalidIdentifierError, InvalidRecordError
 
 SESSION_REQUIRED_FIELDS = (
