@@ -22,6 +22,15 @@ SESSION_REQUIRED_FIELDS = (
     "signal_quality",
 )
 
+SPEAKER_REQUIRED_FIELDS = (
+    "speaker_id",
+    "name",
+    "baseline_pitch",
+    "baseline_energy",
+    "baseline_speech_rate",
+    "baseline_pause_ratio",
+)
+
 # Take in a csv file path and return the rows
 def read_csv_rows(
         file_path: str | Path,
@@ -79,31 +88,74 @@ def read_csv_rows(
 
 
 # Take in speakers csv file path and create SPEAKER profiles
-def load_speakers (file_path: str | Path) -> dict[str, SpeakerProfile]:
-    # Read the CSV rows first
-    rows = read_csv_rows(file_path)
+def load_speakers (
+        file_path: str | Path,
+        rejected_records: list[dict] | None = None,
+) -> dict[str, SpeakerProfile]:
+
+    if rejected_records is None:
+        rejected_records = []
+
+    # Check that the speaker CSV has the columns the loader needs
+    rows = read_csv_rows(file_path, SPEAKER_REQUIRED_FIELDS)
     speakers = {}
 
-    # Make a SpeakerProfile for each row, transforming strings into adequate types
+    # Try each speaker row separately so one bad row does not stop the others
     for row in rows:
-        speaker_id = row["speaker_id"]
+        field = "speaker_id"
 
-        # Check that the ID follows the rule: S followed by three digits
-        if re.fullmatch(r"S\d{3}", speaker_id) is None:
-            raise InvalidIdentifierError(
-                f"Invalid speaker ID on CSV row: {speaker_id!r}. "
-                "Expected S followed by exactly three digits, for example S001."
+        try:
+            # Reject rows that have too few or too many values
+            if "__structure_error__" in row:
+                field = row["__structure_field__"]
+                raise InvalidRecordError(row["__structure_error__"])
+
+            speaker_id = row.get("speaker_id") or ""
+
+            # Speaker IDs must be S followed by three digits
+            if re.fullmatch(r"S\d{3}", speaker_id) is None:
+                raise InvalidIdentifierError(
+                    f"Invalid speaker ID: {speaker_id!r}. "
+                    "Expected S followed by exactly three digits, for example S001."
+                )
+
+            field = "name"
+            name = (row.get("name") or "").strip()
+
+            if not name:
+                raise InvalidRecordError("Speaker name is required.")
+
+            # Convert the baseline values from text into numbers
+            field = "baseline_pitch"
+            usual_pitch = float(row.get("baseline_pitch") or "")
+
+            field = "baseline_energy"
+            usual_energy = float(row.get("baseline_energy") or "")
+
+            field = "baseline_speech_rate"
+            usual_speech_rate = int(row.get("baseline_speech_rate") or "")
+
+            field = "baseline_pause_ratio"
+            usual_pause_ratio = float(row.get("baseline_pause_ratio") or "")
+
+            profile = SpeakerProfile(
+            speaker_id=speaker_id,
+            usual_pitch=usual_pitch,
+            usual_energy=usual_energy,
+            usual_speech_rate=usual_speech_rate,
+            usual_pause_ratio=usual_pause_ratio,
+            name=name,
             )
+            speakers[speaker_id] = profile
 
-        profile = SpeakerProfile(
-            speaker_id = speaker_id,
-            usual_pitch = float(row["baseline_pitch"]),
-            usual_energy = float(row["baseline_energy"]),
-            usual_speech_rate = int(row["baseline_speech_rate"]),
-            usual_pause_ratio = float(row["baseline_pause_ratio"]),
-            name = row["name"],
-        )
-        speakers[speaker_id] = profile
+        except (ValueError, TypeError, KeyError, AttributeError) as error:
+            # Record the problem and then try the next speaker row
+            rejected_records.append({
+                "source_file": Path(file_path).name,
+                "row_number": row.get("__row_number__", "unknown"),
+                "field": field,
+                "reason": str(error),
+            })
 
     return speakers
 

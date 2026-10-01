@@ -8,6 +8,7 @@ from podcast_analyzer.output_writer import write_analysis_summary, write_analysi
 from report import print_report
 from sample_data import create_recording_session
 
+# Run the assignment 1 scenario
 def run_scenario(scenario):
     session = create_recording_session(
         scenario,
@@ -26,7 +27,7 @@ def run_csv_files(profiles_path: Path, sessions_path: Path, output_directory: Pa
     rejected_records = []
 
     # Load speaker profiles first so each recording can find its speaker
-    speakers = load_speakers(profiles_path)
+    speakers = load_speakers(profiles_path, rejected_records)
     sessions = load_recording_sessions(sessions_path, speakers, rejected_records)
     results = {}
 

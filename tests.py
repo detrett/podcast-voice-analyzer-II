@@ -226,5 +226,56 @@ class TestCsvLoader(unittest.TestCase):
         self.assertEqual(rejected_records[1]["row_number"], "3")
         self.assertEqual(rejected_records[1]["field"], "row")
 
+    def test_bad_speaker_rows_rejected_and_valid_profiles_saved(self):
+        speakers_path = self.folder / "another_speakers.csv"
+        speakers_path.write_text(
+            "speaker_id,name,baseline_pitch,baseline_energy,"
+            "baseline_speech_rate,baseline_pause_ratio\n"
+            "S001,Good Speaker,150,0.4,120,0.2\n"
+            "001,Bad ID,150,0.4,120,0.2\n"
+            "S002,Bad Pitch,high,0.4,120,0.2\n",
+            encoding="utf-8",
+        )
+        rejected_records = []
+
+        speakers = load_speakers(speakers_path, rejected_records)
+
+        # The good speaker stays, and the other two rows are recorded
+        self.assertEqual(set(speakers), {"S001"})
+        self.assertEqual(len(rejected_records), 2)
+        self.assertEqual(rejected_records[0]["row_number"], "3")
+        self.assertEqual(rejected_records[0]["field"], "speaker_id")
+        self.assertEqual(rejected_records[1]["row_number"], "4")
+        self.assertEqual(rejected_records[1]["field"], "baseline_pitch")
+
+    def test_speaker_rows_with_wrong_length_rejected(self):
+        speakers_path = self.folder / "wrong_length_speakers.csv"
+        speakers_path.write_text(
+            "speaker_id,name,baseline_pitch,baseline_energy,"
+            "baseline_speech_rate,baseline_pause_ratio\n"
+            "S001,Good Speaker,150,0.4,120,0.2\n"
+            "S002,Missing Ratio,150,0.4,120\n"
+            "S003,Extra Value,150,0.4,120,0.2,extra\n",
+            encoding="utf-8",
+        )
+        rejected_records = []
+
+        speakers = load_speakers(speakers_path, rejected_records)
+        self.assertEqual(set(speakers), {"S001"})
+        self.assertEqual(len(rejected_records), 2)
+        self.assertEqual(rejected_records[0]["field"], "baseline_pause_ratio")
+        self.assertEqual(rejected_records[1]["field"], "row")
+
+    def test_missing_required_speaker_header_raises_error(self):
+        speakers_path = self.folder / "missing_header_speakers.csv"
+        speakers_path.write_text(
+            "speaker_id,name,baseline_pitch,baseline_energy,"
+            "baseline_speech_rate\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(ValueError, "baseline_pause_ratio"):
+            load_speakers(speakers_path)
+
 if __name__ == "__main__":
     unittest.main()
