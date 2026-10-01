@@ -21,9 +21,13 @@ def run_scenario(scenario):
     print("\nScenario:", scenario)
     print_report(result)
 
-def run_csv_files(profiles_path: Path, sessions_path: Path, output_directory: Path):
+def run_csv_files(
+        profiles_path: Path,
+        sessions_path: Path,
+        output_directory: Path,
+):
 
-    # Keeping track of rejected rows
+    # Keeping track of rejected rows from both CSV files
     rejected_records = []
 
     # Load speaker profiles first so each recording can find its speaker
@@ -31,22 +35,31 @@ def run_csv_files(profiles_path: Path, sessions_path: Path, output_directory: Pa
     sessions = load_recording_sessions(sessions_path, speakers, rejected_records)
     results = {}
 
-    # Analyze and display the recordings
+    # Analyze the recordings
     for recording_id, session in sessions.items():
         analyzer = Analyzer(session)
-        result = analyzer.analyze()
-        results[recording_id] = result
+        results[recording_id] = analyzer.analyze()
 
-        print("\nRecording:", recording_id)
-        print_report(result)
-
-    # Save the results after all the recordings have been analyzed
+    # Save the analysis results and rejected rows
     summary_path = write_analysis_summary(results, output_directory)
-    print(f"\nSummary saved to: {summary_path}")
     report_path = write_analysis_report(results, output_directory)
-    print(f"Readable report saved to: {report_path}")
     rejected_path = write_rejected_records(rejected_records, output_directory)
-    print(f"Rejected records saved to: {rejected_path}")
+
+    # Count the valid recording rows that became observations
+    accepted_recording_rows = sum(
+        len(session.observations)
+        for session in sessions.values()
+    )
+
+    # Display a summary when the run is finished
+    print("\n---Analysis complete---")
+    print(f"Accepted speaker profiles: {len(speakers)}")
+    print(f"Accepted recording rows: {accepted_recording_rows}")
+    print(f"Rejected rows: {len(rejected_records)}")
+    print("\n---Created files---")
+    print(f"Summary: {summary_path}")
+    print(f"Readable report: {report_path}")
+    print(f"Rejected records: {rejected_path}")
 
 
 def main():
