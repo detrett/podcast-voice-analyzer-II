@@ -9,9 +9,25 @@ from observation import Observation
 from recording_session import RecordingSession
 from .exceptions import InvalidIdentifierError, InvalidRecordError
 
+SESSION_REQUIRED_FIELDS = (
+    "recording_id",
+    "speaker_id",
+    "timestamp",
+    "speech_present",
+    "pitch",
+    "energy",
+    "speech_rate",
+    "pause_ratio",
+    "background_noise",
+    "signal_quality",
+)
 
 # Take in a csv file path and return the rows
-def read_csv_rows(file_path: str | Path) -> list[dict[str, str]]:
+def read_csv_rows(
+        file_path: str | Path,
+        required_fields: tuple[str, ...] |None = None,
+) -> list[dict[str, str]]:
+
     # Make sure the path is a Path object
     path = Path(file_path)
 
@@ -23,10 +39,40 @@ def read_csv_rows(file_path: str | Path) -> list[dict[str, str]]:
         if reader.fieldnames is None:
             raise ValueError(f"{path} is empty or is missing a header row.")
 
+        # Check that the header includes all the required columns
+        if required_fields is not None:
+            missing_headers = [
+                field for field in required_fields if field not in reader.fieldnames
+            ]
+
+            if missing_headers:
+                missing_text = ", ".join(missing_headers)
+                raise ValueError(f"{path} is missing the required column(s): {missing_text}.")
+
         rows = []
         # Keep the original CSV row number so errors can point to it
         for row_number, row in enumerate(reader, start=2):
             row["__row_number__"] = str(row_number)
+
+            # DictReader uses None as the key when a row has extra values
+            if None in row:
+                row["__structure_field__"] = "row"
+                row["__structure_error__"] = (
+                    "This row has more values than the header has columns."
+                )
+
+            elif required_fields is not None:
+                missing_values = [
+                    field for field in required_fields if row.get(field) is None
+                ]
+
+                if missing_values:
+                    missing_field = missing_values[0]
+                    row["__structure_field__"] = missing_field
+                    row["__structure_error__"] = (
+                        f"This row is missing a value for {missing_field}."
+                    )
+
             rows.append(row)
 
         return rows
@@ -71,11 +117,22 @@ def group_recording_rows(
         rejected_records = []
 
     # Read the CSV rows first
-    rows = read_csv_rows(file_path)
+    rows = read_csv_rows(file_path, SESSION_REQUIRED_FIELDS)
     recordings = {}
 
     # Put rows with the same recording ID together
     for row in rows:
+
+        # Record rows with the wrong number of values and skip them
+        if "__structure_error__" in row:
+            rejected_records.append({
+                "source_file": Path(file_path).name,
+                "row_number": row["__row_number__"],
+                "field": row["__structure_field__"],
+                "reason": row["__structure_error__"],
+            })
+            continue
+
         recording_id = row.get("recording_id")
 
         # Raise InvalidIdentifierError when the ID is wrong
@@ -177,6 +234,49 @@ def load_recording_sessions(
 
                 field = "signal_quality"
                 signal_quality = float(row.get("signal_quality"))
+
+                # Check missing speech values here so the report can name the column
+                if speech_present and pitch is None:
+                    field = "pitch"
+                    raise InvalidRecordError("Pitch is required when speech is present.")
+
+                if speech_present and energy is None:
+                    field = "energy"
+                    raise InvalidRecordError("Energy is required when speech is present.")
+
+                if speech_present and speech_rate is None:
+                    field = "speech_rate"
+                    raise InvalidRecordError("Speech rate is required when speech is present.")
+
+                if speech_present and pause_ratio is None:
+                    field = "pause_ratio"
+                    raise InvalidRecordError("Pause ratio is required when speech is present.")
+
+                # Check the value ranges so the rejected file names the right column
+                field = "pitch"
+                if pitch is not None and pitch < 0:
+                    raise InvalidRecordError("Pitch cannot be negative.")
+
+                field = "energy"
+                if energy is not None and (energy < 0 or energy > 1):
+                    raise InvalidRecordError("Energy must be between 0 and 1.")
+
+                field = "speech_rate"
+                if speech_rate is not None and speech_rate < 0:
+                    raise InvalidRecordError("Speech rate cannot be negative.")
+
+                field = "pause_ratio"
+                if pause_ratio is not None and (pause_ratio < 0 or pause_ratio > 1):
+                    raise InvalidRecordError("Pause ratio must be between 0 and 1.")
+
+                field = "background_noise"
+                if background_noise < 0 or background_noise > 1:
+                    raise InvalidRecordError("Background noise must be between 0 and 1.")
+
+                field = "signal_quality"
+                if signal_quality < 0 or signal_quality > 1:
+                    raise InvalidRecordError("Signal quality must be between 0 and 1.")
+
 
                 # Observation checks that the values are in acceptable ranges
                 field = "observation"

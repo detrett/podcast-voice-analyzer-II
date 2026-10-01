@@ -196,5 +196,35 @@ class TestCsvLoader(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             read_csv_rows(missing_path)
 
+    def test_missing_header_is_rejected(self):
+        sessions_path = self.write_sessions_file(
+            # Missing signal quality
+            "recording_id,speaker_id,timestamp,speech_present,pitch,energy,"
+            "speech_rate,pause_ratio,background_noise\n"
+        )
+
+        with self.assertRaisesRegex(ValueError, "signal_quality"):
+            load_recording_sessions(sessions_path, self.speakers)
+
+    def test_rows_with_wrong_length_are_rejected(self):
+        sessions_path = self.write_sessions_file(
+            "recording_id,speaker_id,timestamp,speech_present,pitch,energy,"
+            "speech_rate,pause_ratio,background_noise,signal_quality\n"
+            # This row is missing the final signal_quality value
+            "REC-2026-001,S001,0,true,150,0.4,120,0.2,0.1\n"
+            # This row has an extra value after signal_quality
+            "REC-2026-002,S001,0,true,150,0.4,120,0.2,0.1,0.9,extra\n"
+        )
+        rejected_records = []
+
+        sessions = load_recording_sessions(sessions_path, self.speakers, rejected_records)
+
+        self.assertEqual(sessions, {})
+        self.assertEqual(len(rejected_records), 2)
+        self.assertEqual(rejected_records[0]["row_number"], "2")
+        self.assertEqual(rejected_records[0]["field"], "signal_quality")
+        self.assertEqual(rejected_records[1]["row_number"], "3")
+        self.assertEqual(rejected_records[1]["field"], "row")
+
 if __name__ == "__main__":
     unittest.main()
