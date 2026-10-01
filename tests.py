@@ -1,7 +1,10 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from analyzer import Analyzer
 from observation import Observation
+from podcast_analyzer.csv_loader import load_recording_sessions, load_speakers, read_csv_rows
 from sample_data import create_recording_session
 
 
@@ -101,6 +104,97 @@ class TestAnalyzer(unittest.TestCase):
             Analyzer.is_within_tolerance(15, 10)
         )
 
+
+class TestCsvLoader(unittest.TestCase):
+    def setUp(self):
+        # Temporary folder for CSV files at the start of each test
+        self.temp_dir = TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.folder = Path(self.temp_dir.name)
+
+        # All the tests will use this speaker
+        self.speakers_path = self.folder / "speakers.csv"
+        self.speakers_path.write_text(
+            "speaker_id,name,baseline_pitch,baseline_energy,"
+            "baseline_speech_rate,baseline_pause_ratio\n"
+            "S001,Test Speaker,150,0.4,120,0.2\n",
+            encoding="utf-8",
+        )
+        self.speakers = load_speakers(self.speakers_path)
+
+    def write_sessions_file(self, csv_text):
+        sessions_path = self.folder / "recording_sessions.csv"
+        sessions_path.write_text(csv_text, encoding="utf-8")
+        return sessions_path
+
+    def test_valid_csv_loads_a_session(self):
+        sessions_path = self.write_sessions_file(
+            "recording_id,speaker_id,timestamp,speech_present,pitch,energy,"
+            "speech_rate,pause_ratio,background_noise,signal_quality\n"
+            "REC-2026-001,S001,0,true,150,0.4,120,0.2,0.1,0.9\n"
+        )
+        rejected_records = []
+
+        sessions = load_recording_sessions(sessions_path, self.speakers, rejected_records)
+
+        self.assertIn("REC-2026-001", sessions)
+        self.assertEqual(len(sessions["REC-2026-001"].observations), 1)
+        self.assertEqual(rejected_records, [])
+
+    # Testing that a bad row does not stop the program, but is instead recorded separately
+    def test_bad_row_is_rejected_but_valid_rows_are_kept(self):
+        sessions_path = self.write_sessions_file(
+            "recording_id,speaker_id,timestamp,speech_present,pitch,energy,"
+            "speech_rate,pause_ratio,background_noise,signal_quality\n"
+            "REC-2026-001,S001,0,true,150,0.4,120,0.2,0.1,0.9\n"
+            "REC-2026-001,S001,1,true,high,0.4,120,0.2,0.1,0.9\n"
+            "REC-2026-001,S001,2,true,151,0.4,120,0.2,0.1,0.9\n"
+        )
+        rejected_records = []
+
+        sessions = load_recording_sessions(sessions_path, self.speakers, rejected_records)
+
+        # The first and third rows are valid but the second is not
+        self.assertEqual(len(sessions["REC-2026-001"].observations), 2)
+        self.assertEqual(len(rejected_records), 1)
+        self.assertEqual(rejected_records[0]["row_number"], "3")
+        self.assertEqual(rejected_records[0]["field"], "pitch")
+
+    # Testing for boundary cases
+    def test_values_at_limits_are_accepted(self):
+        sessions_path = self.write_sessions_file(
+            "recording_id,speaker_id,timestamp,speech_present,pitch,energy,"
+            "speech_rate,pause_ratio,background_noise,signal_quality\n"
+            "REC-2026-001,S001,0,true,0,0,0,0,0,1\n"
+        )
+        rejected_records = []
+
+        sessions = load_recording_sessions(sessions_path, self.speakers, rejected_records)
+
+        self.assertEqual(len(sessions["REC-2026-001"].observations), 1)
+        self.assertEqual(rejected_records, [])
+
+    # Testing for cases where a value is missing
+    def test_missing_value_is_rejected(self):
+        sessions_path = self.write_sessions_file(
+            "recording_id,speaker_id,timestamp,speech_present,pitch,energy,"
+            "speech_rate,pause_ratio,background_noise,signal_quality\n"
+            "REC-2026-001,S001,0,true,150,0.4,120,0.2,0.1,\n"
+        )
+        rejected_records = []
+
+        sessions = load_recording_sessions(sessions_path, self.speakers, rejected_records)
+
+        self.assertNotIn("REC-2026-001", sessions)
+        self.assertEqual(len(rejected_records), 1)
+        self.assertEqual(rejected_records[0]["field"], "signal_quality")
+
+    # Testing for missing file cases
+    def test_missing_file_raises_error(self):
+        missing_path = self.folder / "missing.csv"
+
+        with self.assertRaises(FileNotFoundError):
+            read_csv_rows(missing_path)
 
 if __name__ == "__main__":
     unittest.main()
